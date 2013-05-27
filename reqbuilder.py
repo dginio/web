@@ -10,22 +10,24 @@ requests = []
 def execute(cmd): return subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout.read()
 
 def find_host(request) :
-	return re.compile('Host: (.*)').findall(request)[0].strip()
+	try :
+		return re.compile('Host: (.*)').findall(request)[0].strip()
+	except :
+		return ""
+		pass
 
 def find_method(request) :
-	return re.compile('(^[^\ ]*\ )').findall(request)[0].strip()
-
+	try :
+		return re.compile('(^[^\ ]*\ )').findall(request)[0].strip()
+	except :
+		return ""
+		pass
 def find_uri(request) :
-	return re.compile('(\ [^\ ]*\ )').findall(request)[0].strip()
-
-def handle(p) :
-	paquet  = p[Raw].load
-	if "HTTP" in paquet :
-		global count, requests
-		count += 1
-		print str(count)+" "+find_method(paquet)+" http://"+find_host(paquet)+find_uri(paquet)
-		requests.append(paquet)
-
+	try :
+		return re.compile('(\ [^\ ]*\ )').findall(request)[0].strip()
+	except :
+		return ""
+		pass
 
 def list_requests(requests) :
 	i = 0
@@ -68,9 +70,10 @@ def replay(request) :
 		
 		typefile = execute("file "+filename)
 		
+		print "File : "+typefile+"\n"
+		
 		if "gzip" in typefile :
-			print "type de fichier : gzip"
-			choice = raw_input("décompresser ? (o/n)")
+			choice = raw_input("uncompress ? (o/n)")
 			if "o" in choice :
 				newfile = open(filename+"_uncompress","w")
 				newfile_gz = gzip.open(filename, 'rb')
@@ -152,7 +155,7 @@ def menu(request) :
 	choix = raw_input("Sélection : ")
 	print
 	if choix > "4":
-		exit(0)
+		exit()
 	else :		
 		if choix == "1": 
 			main()		
@@ -163,13 +166,23 @@ def menu(request) :
 		elif choix == "4":
 			export(request)
 
+def handle(p) :
+	paquet  = p[Raw].load
+	if "HTTP" in paquet :
+		global count, requests
+		count += 1
+		print str(count)+" "+find_method(paquet)+" http://"+find_host(paquet)+find_uri(paquet)
+		requests.append(paquet)
+
 def main() :
 	try :
+		global requests
+		requests = []
 		print "Sniffing HTTP"
 		n = input("Nombre de paquets HTTP à capturer :")
 		sniff( count = n, store = 0, filter = "tcp and dst port 80", lfilter = lambda(p): p.haslayer(TCP) and p.haslayer(Raw), prn = handle )
 		select()
-	except (KeyboardInterrupt, SystemExit):
+	except (KeyboardInterrupt):
 		select()
 
 main()
