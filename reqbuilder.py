@@ -11,7 +11,7 @@ http_timeout = 5
 count = 0
 requests = []
 
-def execute(cmd): return subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout.read()
+def execute(cmd) : return subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout.read()
 
 def find_host(request) :
 	try :
@@ -29,7 +29,29 @@ def find_method(request) :
 		
 def find_uri(request) :
 	try :
-		return re.compile('(\ [^\ ]*\ )').findall(request)[0].strip()
+		return re.compile('(\ [^\ ]+\ )').findall(request)[0].strip()
+	except :
+		return ""
+		pass
+
+def find_postdata(request) :
+	try :
+		lines = request.replace("\r","\n").replace("\n\n","\n").split("\n")
+
+		i = 0
+
+		while i < len(lines) :
+			if lines[i].strip() == "" :
+				return lines[i+1]
+				break
+			i += 1
+	except :
+		return ""
+		pass
+
+def find_contentlength(request) :
+	try :
+		return re.compile('Content-Length: ([0-9]+)').findall(request)[0].strip()
 	except :
 		return ""
 		pass
@@ -53,18 +75,24 @@ def play(request) :
 	url = "http://"+find_host(request)+find_uri(request)
 	new_request = urllib2.Request(url)
 
-	post = 0
+	lines = request.replace("\r","\n").replace("\n\n","\n").split("\n")
 
-	for line in request.replace("\r","\n").split("\n") :
-		if ":" in line :
-			splited = line.strip().split(":", 1)
-			if "Host" not in splited[0]:
-				new_request.add_header(splited[0].strip(), splited[1].strip())
-		elif line.strip() == "" and find_method(request) == "POST" :
-			post = 1
-		elif post :
-			data = line
+	i = 0
+
+	while i < len(lines) :
+		if i == 0 :
+			if find_method(lines[i]) == "POST" :
+				post = 1
+			else :
+				post = 0
+		elif post and lines[i].strip() == "" :
+			data = lines[i+1]
 			break
+		elif lines[i].strip() != "" :
+			splited = lines[i].strip().split(":", 1)
+			if "Host" not in splited[0] :
+				new_request.add_header(splited[0].strip(), splited[1].strip())
+		i += 1
 	
 	out = ""
 	
@@ -72,21 +100,24 @@ def play(request) :
 		print "Sending request..."
 		if post : reply = urllib2.urlopen(new_request,data,timeout = http_timeout)
 		else : reply = urllib2.urlopen(new_request,timeout = http_timeout)
+		print "HTTP status : "+str(reply.getcode())
+		print reply.info()
+		
 		out = reply.read()
-	except urllib2.HTTPError, e:
+	except urllib2.HTTPError, e :
 		print "Error HTTP, code : ", e.code
 		if e.code == 304 :
 			lines = ""
-			for line in request.replace("\r","\n").split("\n") :
+			for line in request.replace("\r","\n").replace("\n\n","\n").split("\n") :
 				if "If-Modified-Since: " in line :
 					lines += "\n  "+line
 					break
-			for line in request.replace("\r","\n").split("\n") :
+			for line in request.replace("\r","\n").replace("\n\n","\n").split("\n") :
 				if "If-None-Match: " in line :
 					lines += "\n  "+line
 					break
 			if lines : print "Remove these lines in the request to disable last modification detection : "+lines
-	except urllib2.URLError, e:
+	except urllib2.URLError, e :
 		print "can't reach a server."
 		print "Reason: ", e.reason
 
@@ -102,7 +133,7 @@ def play(request) :
 		print "File "+filename+" saved.\n"+typefile
 
 		if "gzip" in typefile :
-			for line in request.replace("\r","\n").split("\n") :
+			for line in request.replace("\r","\n").replace("\n\n","\n").split("\n") :
 				if "Accept-Encoding: " in line :
 					print "Remove this line in the request to disable gzip compression : \n  "+line
 					break
@@ -139,21 +170,28 @@ def export_python(request) :
 	'#!/usr/bin/python\n',
 	'#coding:utf-8\n\n',
 	'import urllib, urllib2\n\n',
-	'request = urllib2.Request("'+url+'")\n\n',
+	'request = urllib2.Request("'+url+'")\n\n'
 	])
 
-	post = 0
+	lines = request.replace("\r","\n").replace("\n\n","\n").split("\n")
 
-	for line in request.split('\n') :
-		if ":" in line :
-			splited = line.strip().split(":", 1)
+	i = 0
+
+	while i < len(lines) :
+
+		if i == 0 :
+			if find_method(lines[i]) == "POST" :
+				post = 1
+			else :
+				post = 0
+		elif post and lines[i].strip() == "" :
+			data = lines[i+1]
+			break
+		elif lines[i].strip() != "" :
+			splited = lines[i].strip().split(":", 1)
 			if "Host" not in splited[0]:
 				newfile.write('request.add_header("'+splited[0].strip()+'", "'+splited[1].strip().replace('"','')+'")\n')
-		elif line.strip() == "" and find_method(request) == "POST" :
-			post = 1
-		elif post :
-			data = line
-			break
+		i += 1
 
 	if post : newfile.write('\nreply = urllib2.urlopen(request,"'+data.strip()+'",timeout = '+str(http_timeout)+')\n')
 	else : newfile.write('\nreply = urllib2.urlopen(request,timeout = '+str(http_timeout)+')\n')
@@ -170,19 +208,26 @@ def export_bash(request) :
 	filename = give_filename("newreq_"+re.compile('(.*)\.[^\.]*').findall(find_host(request))[0].strip(),"sh")
 
 	wget = "wget "	
-	
-	post = 0
 
-	for line in request.split('\n') :
-		if ":" in line :
-			splited = line.strip().split(":", 1)
-			if "Host" not in splited[0]:
-				wget += "--header='"+splited[0].strip()+": "+splited[1].strip().replace("'","")+"' "
-		elif line.strip() == "" and find_method(request) == "POST" :
-			post = 1
-		elif post :
-			data = line
+	lines = request.replace("\r","\n").replace("\n\n","\n").split("\n")
+
+	i = 0
+
+	while i < len(lines) :
+
+		if i == 0 :
+			if find_method(lines[i]) == "POST" :
+				post = 1
+			else :
+				post = 0
+		elif post and lines[i].strip() == "" :
+			data = lines[i+1]
 			break
+		elif lines[i].strip() != "" :
+			splited = lines[i].strip().split(":", 1)
+			if "Host" not in splited[0] :
+				wget += "--header='"+splited[0].strip()+": "+splited[1].strip()+"' "
+		i += 1
 
 	if post : wget += "--post-data='"+data.strip()+"' "
 	
@@ -197,6 +242,12 @@ def export_bash(request) :
 	menu(request)
 
 def modify(request) :
+	if find_method(request) == "POST" :
+		data = find_postdata(request)
+		post = 1
+	else : 
+		post = 0
+
 	newfile = open("reqbuilder.tmp","w")
 	newfile.write(request)
 	newfile.close()
@@ -209,13 +260,25 @@ def modify(request) :
 	os.system("clear")
 	
 	if newrequest in request :
-		print "Nothing changed."
+		print "Nothing changed.\n"+dashs
+		print request
 	else : 
 		request = newrequest
-		print "Modifications applied."
-	
-	print dashs
-	print request
+		print "Modifications applied.\n"+dashs
+		print request
+		newdata = find_postdata(request)
+		if data != newdata :
+			old_data_length = int(find_contentlength(request))
+			new_data_length = len(newdata)
+			if new_data_length != old_data_length :
+				print "Post data length's has changed, you should update the header : 'Content-length'."
+				choice = raw_input("Update 'Content-Length: "+str(old_data_length)+"' to 'Content-Length: "+str(new_data_length)+"' (y/n) ? ")
+				if "y" in choice :	
+					request = request.replace("Content-Length: "+str(old_data_length),"Content-Length: "+str(new_data_length))
+					os.system("clear")
+					print "Modifications applied.\n"+dashs
+					print request
+					
 	menu(request)
 
 def select() :
