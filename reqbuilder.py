@@ -317,7 +317,7 @@ def menu(request) :
 	print """
 		--- Request Builder ---
 
-	[+] 1 - Restart sniffind
+	[+] 1 - Restart sniffing
 	[+] 2 - Open a pcap file
 	[+] 3 - Select another request
 	[+] 4 - Modify the current request
