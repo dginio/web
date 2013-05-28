@@ -13,6 +13,10 @@ requests = []
 
 def execute(cmd) : return subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE).stdout.read()
 
+def clear() :
+	os.system("clear")
+	print dashs
+
 def find_host(request) :
 	try :
 		return re.compile('Host: (.*)').findall(request)[0].strip()
@@ -71,7 +75,7 @@ def give_filename(filename,ext) :
 		tmp=basename+str(i)
 	return tmp+"."+ext
 
-def play(request) :
+def play(request,save) :
 	url = "http://"+find_host(request)+find_uri(request)
 	new_request = urllib2.Request(url)
 
@@ -94,16 +98,16 @@ def play(request) :
 				new_request.add_header(splited[0].strip(), splited[1].strip())
 		i += 1
 	
-	out = ""
-	
 	try :
 		print "Sending request..."
 		if post : reply = urllib2.urlopen(new_request,data,timeout = http_timeout)
 		else : reply = urllib2.urlopen(new_request,timeout = http_timeout)
+		clear()
+		print "Reply : "
+		print dashs
 		print "HTTP status : "+str(reply.getcode())
 		print reply.info()
 		
-		out = reply.read()
 	except urllib2.HTTPError, e :
 		print "Error HTTP, code : ", e.code
 		if e.code == 304 :
@@ -121,6 +125,11 @@ def play(request) :
 		print "can't reach a server."
 		print "Reason: ", e.reason
 
+	out = ""	
+	
+	if save :
+		out = reply.read()
+
 	if out :
 		filename = give_filename(re.compile('(.*)\.[^\.]*').findall(find_host(request))[0].strip(),"out")
 
@@ -130,6 +139,7 @@ def play(request) :
 
 		typefile = execute("file "+filename)
 
+		print dashs
 		print "File "+filename+" saved.\n"+typefile
 
 		if "gzip" in typefile :
@@ -148,7 +158,7 @@ def play(request) :
 				typefile = execute("file "+filename)
 				print "\nFile "+filename+" saved.\n"+typefile
 
-	menu(request)
+	menu_handling(request)
 
 def export_raw(request) :
 	filename = give_filename("newreq_"+re.compile('(.*)\.[^\.]*').findall(find_host(request))[0].strip(),"raw")
@@ -158,7 +168,7 @@ def export_raw(request) :
 	
 	print "File "+filename+" saved.\n"
 	
-	menu(request)
+	menu_export(request)
 
 def export_python(request) :
 	url = "http://"+find_host(request)+find_uri(request)
@@ -200,7 +210,7 @@ def export_python(request) :
 
 	print "File "+filename+" saved.\n"
 
-	menu(request)
+	menu_export(request)
 	
 def export_bash(request) :
 	url = "http://"+find_host(request)+find_uri(request)
@@ -239,7 +249,7 @@ def export_bash(request) :
 
 	print "File "+filename+" saved.\n"
 
-	menu(request)
+	menu_export(request)
 
 def modify(request) :
 	if find_method(request) == "POST" :
@@ -257,7 +267,7 @@ def modify(request) :
 	newfile.close()
 	os.system("rm reqbuilder.tmp")
 	
-	os.system("clear")
+	clear()
 	
 	if newrequest in request :
 		print "Nothing changed.\n"+dashs
@@ -267,7 +277,7 @@ def modify(request) :
 		print "Modifications applied.\n"+dashs
 		print request
 		newdata = find_postdata(request)
-		if data != newdata :
+		if post and data != newdata :
 			old_data_length = int(find_contentlength(request))
 			new_data_length = len(newdata)
 			if new_data_length != old_data_length :
@@ -275,23 +285,23 @@ def modify(request) :
 				choice = raw_input("Update 'Content-Length: "+str(old_data_length)+"' to 'Content-Length: "+str(new_data_length)+"' (y/n) ? ")
 				if "y" in choice :	
 					request = request.replace("Content-Length: "+str(old_data_length),"Content-Length: "+str(new_data_length))
-					os.system("clear")
+					
+					clear()
 					print "Modifications applied.\n"+dashs
 					print request
 					
-	menu(request)
+	menu_handling(request)
 
 def select() :
 	global requests
-	os.system("clear")
-	print dashs
+	clear()
 	list_requests(requests)
 	print dashs
 	req = raw_input('Select a request : ')
 	request = requests[int(req)-1]
-	print dashs
+	clear()
 	print request
-	menu(request)
+	menu_handling(request)
 
 def pcap() :
 	global requests, count
@@ -299,47 +309,100 @@ def pcap() :
 	path = ""
 	while not os.path.isfile(path) :
 		if path : print "No such file"
-		path = raw_input("path of the pcap file : ")
-    
+		path = raw_input("Path of the pcap file : ")
+	
 	count = 0
-	requests = []	
+	requests = []
+		
+	print "Loading "+path+" ..."
 	
 	packets = rdpcap(path)
     
 	for packet in packets :
 		if check(packet) :
-			handle(packet)
+			handling(packet)
 	print
 	select()
+
+def import_raw() :
+	path = ""
+	while not os.path.isfile(path) :
+		if path : print "No such file"
+		path = raw_input("Path of the raw file : ")
 	
-def menu(request) :
+	rawfile = open(path,"r")
+	request = rawfile.read()
+	rawfile.close()
+	
+	clear()
+	print request
+	
+	menu_handling(request)
+
+def display(request) :
+	clear()
+	print request
+	menu_handling(request)
+
+def menu_handling(request) :
 	print dashs
 	print """
-		--- Request Builder ---
+		--- Request Builder | Handling ---
 
-	[+] 1 - Restart sniffing
-	[+] 2 - Open a pcap file
-	[+] 3 - Select another request
-	[+] 4 - Modify the current request
-	[+] 5 - Play the current request and save the result
-	[+] 6 - Export the current request in raw format
-	[+] 7 - Export the current request in a python script
-	[+] 8 - Export the current request in a bash script
+	[+] 1 - Display the current request
+	[+] 2 - Modify the current request
+	[+] 3 - Play the current request
+	[+] 4 - Play the current request and save the result
+	[+] 5 - Export the current request
+	[+] 6 - Back to import
 	[+] 0 - Exit
 	"""	
 	choix = input("Choice : ")
 	print
 	if   choix <  1 : exit()
-	elif choix == 1 : main()
-	elif choix == 2 : pcap()
-	elif choix == 3 : select()
-	elif choix == 4 : modify(request)
-	elif choix == 5 : play(request)
-	elif choix == 6 : export_raw(request)
-	elif choix == 7 : export_python(request)
-	elif choix == 8 : export_bash(request)
+	elif choix == 1 : display(request)
+	elif choix == 2 : modify(request)
+	elif choix == 3 : play(request,0)
+	elif choix == 4 : play(request,1)
+	elif choix == 5 : clear(); menu_export(request)
+	elif choix == 6 : menu_import()
 
-def handle(p) :
+def menu_export(request) :
+	print request
+	print dashs
+	print """
+		--- Request Builder | Export ---
+
+	[+] 1 - Export in raw format
+	[+] 2 - Export in a python script
+	[+] 3 - Export in a bash script	
+	[+] 0 - Back	
+	"""	
+	choix = input("Choice : ")
+	print
+	if   choix <  1 : menu_handling(request)
+	elif choix == 1 : export_raw(request)
+	elif choix == 2 : export_python(request)
+	elif choix == 3 : export_bash(request)
+
+def menu_import() :
+	clear()
+	print """
+		--- Request Builder | import ---
+
+	[+] 1 - Sniff the network
+	[+] 2 - Open a pcap file
+	[+] 3 - Open a raw request
+	[+] 0 - Exit
+	"""	
+	choix = input("Choice : ")
+	print
+	if   choix <  1 : exit()
+	elif choix == 1 : sniff_tcp()
+	elif choix == 2 : pcap()
+	elif choix == 3 : import_raw()
+
+def handling(p) :
 	packet  = p[Raw].load
 	global count, requests
 	count += 1
@@ -347,25 +410,23 @@ def handle(p) :
 	requests.append(packet)
 
 def check(p) :
-	if p.haslayer(TCP) and p.haslayer(Raw):
+	if p.haslayer(TCP) and p.haslayer(Raw) :
 		try :
 			if any( find_method(p[Raw].load) == test for test in ["GET","HEAD","POST","OPTIONS","CONNECT","TRACE","PUT","PATCH","DELETE"] ) :
 				return p
 		except :
 			pass
 
-def main() :
+def sniff_tcp() :
 	try :
 		global requests, count
 		count = 0
 		requests = []		
-		print "Sniffing HTTP"
-		n = input("Number of requests to sniff : ")
-		os.system("clear")
-		print dashs
-		sniff( count = n, store = 0, filter = "tcp", lfilter = check, prn = handle )
+		n = input("Number of requests to sniff ( 0 = unlimited ) : ")
+		clear()
+		sniff( count = n, store = 0, filter = "tcp", lfilter = check, prn = handling )
 		select()
-	except (KeyboardInterrupt):
+	except (KeyboardInterrupt) :
 		select()
 
-main()
+menu_import()
