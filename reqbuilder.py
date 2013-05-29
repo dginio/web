@@ -158,6 +158,7 @@ def play(request,save) :
 				typefile = execute("file "+filename)
 				print "\nFile "+filename+" saved.\n"+typefile
 
+	print dashs
 	menu_handling(request)
 
 def export_raw(request) :
@@ -166,8 +167,9 @@ def export_raw(request) :
 	newfile.write(request)
 	newfile.close()
 	
-	print "File "+filename+" saved.\n"
-	
+	clear()
+	print "File "+filename+" saved."
+	print dashs
 	menu_export(request)
 
 def export_python(request) :
@@ -207,9 +209,9 @@ def export_python(request) :
 	else : newfile.write('\nreply = urllib2.urlopen(request,timeout = '+str(http_timeout)+')\n')
 	newfile.write('\nprint reply.read()\n\n')
 	newfile.close()
-
-	print "File "+filename+" saved.\n"
-
+	clear()
+	print "File "+filename+" saved."
+	print dashs
 	menu_export(request)
 	
 def export_bash(request) :
@@ -246,9 +248,9 @@ def export_bash(request) :
 	newfile = open(filename,"w")
 	newfile.writelines(['#!/bin/bash\n\n',wget+'\n'])
 	newfile.close()
-
-	print "File "+filename+" saved.\n"
-
+	clear()
+	print "File "+filename+" saved."
+	print dashs
 	menu_export(request)
 
 def modify(request) :
@@ -289,19 +291,27 @@ def modify(request) :
 					clear()
 					print "Modifications applied.\n"+dashs
 					print request
-					
+	
+	print dashs				
 	menu_handling(request)
 
 def select() :
 	global requests
-	clear()
-	list_requests(requests)
-	print dashs
-	req = raw_input('Select a request : ')
-	request = requests[int(req)-1]
-	clear()
-	print request
-	menu_handling(request)
+	if len(requests) == 0 :
+		clear()
+		print "No request found ..."
+		print dashs
+		menu_import()
+	else :
+		clear()
+		list_requests(requests)
+		print dashs
+		req = raw_input('Select a request : ')
+		request = requests[int(req)-1]
+		clear()
+		print request
+		print dashs
+		menu_handling(request)
 
 def pcap() :
 	global requests, count
@@ -336,16 +346,16 @@ def import_raw() :
 	
 	clear()
 	print request
-	
+	print dashs
 	menu_handling(request)
 
 def display(request) :
 	clear()
 	print request
+	print dashs
 	menu_handling(request)
 
 def menu_handling(request) :
-	print dashs
 	print """
 		--- Request Builder | Handling ---
 
@@ -357,15 +367,27 @@ def menu_handling(request) :
 	[+] 6 - Back to import
 	[+] 0 - Exit
 	"""	
-	choix = input("Choice : ")
-	print
-	if   choix <  1 : exit()
-	elif choix == 1 : display(request)
-	elif choix == 2 : modify(request)
-	elif choix == 3 : play(request,0)
-	elif choix == 4 : play(request,1)
-	elif choix == 5 : clear(); menu_export(request)
-	elif choix == 6 : menu_import()
+	while 1 :
+		choice = raw_input("Choice ( or sh command ) : ")
+		if choice :
+			if len(choice) == 1 and choice.isdigit() :
+				choice = int(choice)
+				if   choice <  1 : exit()
+				elif choice == 1 : display(request)
+				elif choice == 2 : modify(request)
+				elif choice == 3 : play(request,0)
+				elif choice == 4 : play(request,1)
+				elif choice == 5 : clear(); menu_export(request)
+				elif choice == 6 : clear(); menu_import()
+				else :
+					clear()
+					menu_handling(request)
+			else :
+				print
+				print execute(choice)
+		else :
+			clear()
+			menu_handling(request)
 
 def menu_export(request) :
 	print request
@@ -378,15 +400,27 @@ def menu_export(request) :
 	[+] 3 - Export in a bash script	
 	[+] 0 - Back	
 	"""	
-	choix = input("Choice : ")
-	print
-	if   choix <  1 : menu_handling(request)
-	elif choix == 1 : export_raw(request)
-	elif choix == 2 : export_python(request)
-	elif choix == 3 : export_bash(request)
+	while 1 :
+		choice = raw_input("Choice ( or sh command ) : ")
+		if choice :
+			if len(choice) == 1 and choice.isdigit() :
+				choice = int(choice)
+				print
+				if   choice <  1 : clear(); menu_handling(request)
+				elif choice == 1 : export_raw(request)
+				elif choice == 2 : export_python(request)
+				elif choice == 3 : export_bash(request)
+				else :
+					clear()
+					menu_export(request)
+			else :
+				print
+				print execute(choice)
+		else :
+			clear()
+			menu_export(request)
 
 def menu_import() :
-	clear()
 	print """
 		--- Request Builder | import ---
 
@@ -395,13 +429,26 @@ def menu_import() :
 	[+] 3 - Open a raw request
 	[+] 0 - Exit
 	"""	
-	choix = input("Choice : ")
-	print
-	if   choix <  1 : exit()
-	elif choix == 1 : sniff_tcp()
-	elif choix == 2 : pcap()
-	elif choix == 3 : import_raw()
-
+	while 1 :
+		choice = raw_input("Choice ( or sh command ) : ")
+		if choice :
+			if len(choice) == 1 and choice.isdigit() :
+				choice = int(choice)
+				print
+				if   choice <  1 : exit()
+				elif choice == 1 : sniff_tcp()
+				elif choice == 2 : pcap()
+				elif choice == 3 : import_raw()
+				else :
+					clear()
+					menu_import()
+			else :
+				print
+				print execute(choice)
+		else :
+			clear()
+			menu_import()
+	
 def handling(p) :
 	packet  = p[Raw].load
 	global count, requests
@@ -421,12 +468,15 @@ def sniff_tcp() :
 	try :
 		global requests, count
 		count = 0
-		requests = []		
-		n = input("Number of requests to sniff ( 0 = unlimited ) : ")
+		requests = []
+		n = ""
+		while not ( n and n.isdigit() ) : n = raw_input("Number of requests to sniff ( 0 = unlimited ) : ")
+		n = int(n)
 		clear()
 		sniff( count = n, store = 0, filter = "tcp", lfilter = check, prn = handling )
 		select()
 	except (KeyboardInterrupt) :
 		select()
 
+clear()
 menu_import()
