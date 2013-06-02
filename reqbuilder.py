@@ -98,8 +98,11 @@ def play(request,save) :
 				new_request.add_header(splited[0].strip(), splited[1].strip())
 		i += 1
 	
+	print "Sending request..."
+	
+	out = ""	
+
 	try :
-		print "Sending request..."
 		if post : reply = urllib2.urlopen(new_request,data,timeout = http_timeout)
 		else : reply = urllib2.urlopen(new_request,timeout = http_timeout)
 		clear()
@@ -107,7 +110,9 @@ def play(request,save) :
 		print dashs
 		print "HTTP status : "+str(reply.getcode())
 		print reply.info()
-		
+		if save :
+			out = reply.read()
+			
 	except urllib2.HTTPError, e :
 		print "Error HTTP, code : ", e.code
 		if e.code == 304 :
@@ -122,14 +127,11 @@ def play(request,save) :
 					break
 			if lines : print "Remove these lines in the request to disable last modification detection : "+lines
 	except urllib2.URLError, e :
-		print "can't reach a server."
+		print "Can't reach a server."
 		print "Reason: ", e.reason
-
-	out = ""	
+	except socket.timeout, e:
+		print "Timeout."
 	
-	if save :
-		out = reply.read()
-
 	if out :
 		filename = give_filename(re.compile('(.*)\.[^\.]*').findall(find_host(request))[0].strip(),"out")
 
@@ -480,3 +482,17 @@ def sniff_tcp() :
 
 clear()
 menu_import()
+
+"""
+newxhr = new XMLHttpRequest();
+newxhr.open( "GET", "dginio.fr", false );
+newxhr.setRequestHeader('Connection', 'keep-alive');
+newxhr.setRequestHeader('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+newxhr.setRequestHeader('Origin', 'http://www.commentcamarche.net');
+newxhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.52 Safari/537.17');
+newxhr.setRequestHeader('Referer', 'http://www.commentcamarche.net/');
+newxhr.setRequestHeader('Accept-Language', 'fr-FR,fr;q=0.8,en-US;q=0.6,en;q=0.4');
+newxhr.setRequestHeader('Accept-Charset', 'ISO-8859-1,utf-8;q=0.7,*;q=0.3');
+newxhr.send( null );
+console.log(newxhr.responseText);
+"""
